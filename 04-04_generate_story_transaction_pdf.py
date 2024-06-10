@@ -2,8 +2,14 @@ import os
 import markdown2
 import pdfkit
 
-def markdown_to_pdf(input_filename, output_filename):
-    # Read the Markdown file
+def markdown_to_pdf(input_filename, output_filename, rewrite):
+    if os.path.exists(output_filename):
+        if rewrite:
+            os.remove(output_filename)
+        else:
+            print(f"{output_filename} exists")
+            return
+
     with open(input_filename, 'r', encoding="utf-8") as file:
         markdown_content = file.read()
 
@@ -51,9 +57,11 @@ def main():
     stories_path = './stuff/stories'
     filenames = [name for name in os.listdir(stories_path) if name.endswith('.md')]
     for filename in filenames:
+        if '0001-0500' not in filename:
+            continue        
         input_filename = f"{stories_path}/{filename}"
         output_filename = f"{stories_path}/{filename[:-3]}.pdf"
-        markdown_to_pdf(input_filename, output_filename)
+        markdown_to_pdf(input_filename, output_filename, False)
 
 
 if __name__ == '__main__':

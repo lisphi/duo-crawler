@@ -17,7 +17,7 @@ def generate_story_transcription_md(transcription, stories_path, storie_dir_name
         file.write(f"## {storie_dir_name[:4]} · {transcription['header']['content']['text']} · {transcription['header']['title']}\n")
         # table 
         # table header
-        file.write(f"|  | {transcription['header']['content']['text']} · {transcription['header']['title']} |\n")
+        file.write(f"| {storie_dir_name[:4]} | {transcription['header']['content']['text']} · {transcription['header']['title']} |\n")
         file.write(f"| --------: | :------- |\n")
         # table rows
         for line in transcription['lines']:
