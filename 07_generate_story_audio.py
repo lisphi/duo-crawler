@@ -47,6 +47,7 @@ def generate_story_audio_mp3(transcription, stories_path, storie_dir_name, rewri
         line_audio = AudioSegment.from_mp3(line_audio_filename)
         merged += line_audio
 
+    merged += AudioSegment.silent(2000)
     merged.export(target_filename, format="mp3")  
 
 
