@@ -187,10 +187,15 @@ def generate_story_mp3_file(story_filename, rewrite):
             merged += pause_audio
             total_duration_ms += 1000
         if element['type'] == 'LINE':
-            if element['line']['type'] == 'PROSE':
-                reciter_name = ''
-            else:
+            if 'characterNameMap' in element['line']:
                 reciter_name = f"({element['line']['characterNameMap']['en']})" 
+            else:
+                reciter_name = ''
+            if element['line']['type'] == 'SECTION_HEADER':
+                reciter_name = f"(SECTION)"
+                silent_duration_ms = 600
+            else:
+                silent_duration_ms = 300
             audio_url = element['line']['content']['audio']['url']
             text = element['line']['content']['text']
             lyrics.append(f"[{format_duration(total_duration_ms)}]{reciter_name}{text}")
@@ -198,9 +203,9 @@ def generate_story_mp3_file(story_filename, rewrite):
             audio = AudioSegment.from_mp3(audio_filename)
             merged += audio
             total_duration_ms += len(audio)
-            pause_audio = AudioSegment.silent(300) 
+            pause_audio = AudioSegment.silent(silent_duration_ms) 
             merged += pause_audio
-            total_duration_ms += 300
+            total_duration_ms += silent_duration_ms
     
     merged += AudioSegment.silent(2700)
     merged.export(target_mp3_filename, format="mp3")
@@ -235,16 +240,16 @@ def generate_story_mp3_files(rewrite):
 def main():
     print('start ...')
     # download_courses(False)
-    # download_story_static_files(False)
-    # generate_story_mp3_files(False)
+    download_story_static_files(False)
+    generate_story_mp3_files(False)
 
 
 
 
 env_variables = dotenv_values(".env")
 # user_lang = ""
-user_lang = "-zh"
-# user_lang = "-es"
+# user_lang = "-zh"
+user_lang = "-es"
 # user_lang = "-ja"
 
 if __name__ == '__main__':
