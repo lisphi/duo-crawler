@@ -5,6 +5,7 @@ import time
 import pandas as pd
 import urllib.request
 from pydub import AudioSegment
+import re
 from dotenv import dotenv_values
 
 
@@ -16,8 +17,12 @@ def download_guidebook(phase_index, part_index, part, rewrite):
         return
     unit_index = part['unitIndex']
     guidebook_url = part['guidebook']['url']
+    if guidebook_url is None:
+        return
+    guidebook_name = re.sub(r"[/'\s]", '-', part['teachingObjective']) # replacing blank or single-quoted characters with underscores
+    
     guidebook_path = f"stuff/course{user_lang}/guidebook/phase-{phase_index+1:02d}"
-    guidebook_filename = f"{guidebook_path}/part-{part_index+1:02d}_guidebook-{unit_index+1:03d}.json"
+    guidebook_filename = f"{guidebook_path}/{phase_index+1:02d}-{part_index+1:02d}_{guidebook_name}.json"
 
     if os.path.exists(guidebook_filename):
         if rewrite:
@@ -27,7 +32,7 @@ def download_guidebook(phase_index, part_index, part, rewrite):
             return
     os.makedirs(guidebook_path, exist_ok=True)
 
-    response = requests.get(guidebook_url)
+    response =  get_with_retries(guidebook_url)
     if response.status_code == 200:
         data = response.json()
         with open(guidebook_filename, 'w', encoding='utf-8') as json_file:
@@ -77,7 +82,7 @@ def download_story(phase_index, part_index, part, story_id_set, rewrite):
         time.sleep(0.2)
 
 
-def get_with_retries(url, headers, max_retries = 3):
+def get_with_retries(url, headers = None, max_retries = 3):
     retries = 0
     while retries < max_retries:
         response = requests.get(url, headers=headers)
@@ -101,7 +106,7 @@ def download_courses(rewrite):
         for part_index in range(len(phase['units'])):
             part = phase['units'][part_index]
             download_guidebook(phase_index, part_index, part, rewrite)
-            download_story(phase_index, part_index, part, story_id_set, rewrite)
+            # download_story(phase_index, part_index, part, story_id_set, rewrite)
 
 
 
@@ -239,17 +244,17 @@ def generate_story_mp3_files(rewrite):
 
 def main():
     print('start ...')
-    # download_courses(False)
-    download_story_static_files(False)
-    generate_story_mp3_files(False)
+    download_courses(False)
+    # download_story_static_files(False)
+    # generate_story_mp3_files(False)
 
 
 
 
 env_variables = dotenv_values(".env")
 # user_lang = ""
-# user_lang = "-zh"
-user_lang = "-es"
+user_lang = "-zh"
+# user_lang = "-es"
 # user_lang = "-ja"
 
 if __name__ == '__main__':
