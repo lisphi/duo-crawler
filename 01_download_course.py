@@ -21,7 +21,7 @@ def download_guidebook(phase_index, part_index, part, rewrite):
         return
     guidebook_name = re.sub(r"[/'\s]", '-', part['teachingObjective']) # replacing blank or single-quoted characters with underscores
     
-    guidebook_path = f"stuff/course{user_lang}/guidebook/phase-{phase_index+1:02d}"
+    guidebook_path = f"stuff/course{user_lang}/guidebook/{phase_index+1:02d}"
     guidebook_filename = f"{guidebook_path}/{phase_index+1:02d}-{part_index+1:02d}_{guidebook_name}.json"
 
     if os.path.exists(guidebook_filename):
@@ -52,7 +52,7 @@ def download_story(phase_index, part_index, part, story_id_set, rewrite):
         if story_id in story_id_set:
             continue
         story_id_set.add(story_id)
-        story_path = f"stuff/course{user_lang}/story"
+        story_path = f"stuff/course{user_lang}/story/{phase_index+1:02d}"
         story_filename = f"{story_path}/{phase_index+1:02d}-{part_index+1:02d}_{story_id[6:]}.json"
         story_url_template = """https://stories.duolingo.com/api2/stories/{}?crowns=495&debugShowAllChallenges=false&illustrationFormat=svg&isDesktop=true&isLegendaryMode=false&masterVersion=false&supportedElements=ARRANGE,CHALLENGE_PROMPT,DUO_POPUP,FREEFORM_WRITING,FREEFORM_WRITING_EXAMPLE_RESPONSE,FREEFORM_WRITING_PROMPT,HEADER,HINT_ONBOARDING,LINE,MATCH,MULTIPLE_CHOICE,POINT_TO_PHRASE,SECTION_HEADER,SELECT_PHRASE,SENDER_RECEIVER,SUBHEADING,TYPE_TEXT&type=story&_={}"""
         story_url = story_url_template.format(story_id, int(time.time()*1000))
@@ -106,8 +106,12 @@ def download_courses(rewrite):
         for part_index in range(len(phase['units'])):
             part = phase['units'][part_index]
             download_guidebook(phase_index, part_index, part, rewrite)
-            # download_story(phase_index, part_index, part, story_id_set, rewrite)
+            download_story(phase_index, part_index, part, story_id_set, rewrite)
 
+
+
+def generate_guidebooks_md():
+    return
 
 
 
@@ -146,15 +150,20 @@ def get_static_filename(url):
 
 
 def download_story_static_files(rewrite):
-    story_path = f"./stuff/course{user_lang}/story"
-    filenames = [filename for filename in os.listdir(story_path) if filename.endswith('.json')]
-    for i in range(len(filenames)):
-        story_filename = f"{story_path}/{filenames[i]}" 
+    story_root_path = f"./stuff/course{user_lang}/story"
+    phase_dirs = [phase_dir for phase_dir in os.listdir(story_root_path) if os.path.isdir(f"{story_root_path}/{phase_dir}")]
+    story_filenames =[]
+    for phase_dir in phase_dirs:
+        filenames = [filename for filename in os.listdir(f"{story_root_path}/{phase_dir}") if filename.endswith('.json')]
+        story_filenames.extend([f"{story_root_path}/{phase_dir}/{filename}" for filename in filenames])
+
+    for i in range(len(story_filenames)):
+        story_filename = story_filenames[i]
         with open(story_filename, 'r', encoding='utf-8') as story_file:
             story = json.load(story_file)
-        print(f"downloading static files of '{story_filename}' ...")
+        print(f"downloading static files for '{story_filename}' ...")
         download_story_static_file(story, rewrite)
-        print(f"downloaded static files of '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
+        print(f"downloaded static files for '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
         
 
 
@@ -202,7 +211,7 @@ def generate_story_mp3_file(story_filename, rewrite):
             else:
                 silent_duration_ms = 300
             audio_url = element['line']['content']['audio']['url']
-            text = element['line']['content']['text']
+            text = element['line']['content']['text'].replace('\n', ' ')
             lyrics.append(f"[{format_duration(total_duration_ms)}]{reciter_name}{text}")
             audio_filename = get_static_filename(audio_url)
             audio = AudioSegment.from_mp3(audio_filename)
@@ -231,20 +240,25 @@ def format_duration(duration_ms):
 
 
 def generate_story_mp3_files(rewrite):
-    story_path = f"./stuff/course{user_lang}/story"
-    filenames = [filename for filename in os.listdir(story_path) if filename.endswith('.json')]
-    for i in range(len(filenames)):
-        story_filename = f"{story_path}/{filenames[i]}" 
-        print(f"generating mp3 file of '{story_filename}' ...")
+    story_root_path = f"./stuff/course{user_lang}/story"
+    phase_dirs = [phase_dir for phase_dir in os.listdir(story_root_path) if os.path.isdir(f"{story_root_path}/{phase_dir}")]
+    story_filenames =[]
+    for phase_dir in phase_dirs:
+        filenames = [filename for filename in os.listdir(f"{story_root_path}/{phase_dir}") if filename.endswith('.json')]
+        story_filenames.extend([f"{story_root_path}/{phase_dir}/{filename}" for filename in filenames])
+
+    for i in range(len(story_filenames)):
+        story_filename = story_filenames[i]
+        print(f"generating mp3 file for '{story_filename}' ...")
         generate_story_mp3_file(story_filename, rewrite)
-        print(f"generatied mp3 file of '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
+        print(f"generatied mp3 file for '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
 
 
 
 
 def main():
     print('start ...')
-    download_courses(False)
+    # download_courses(False)
     # download_story_static_files(False)
     # generate_story_mp3_files(False)
 
