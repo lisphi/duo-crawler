@@ -10,6 +10,57 @@ from dotenv import dotenv_values
 
 
 
+def download_part(phase_index, part_index, part, rewrite):
+    if phase_index < 6:
+        return    
+    for level_index in range(len(part['levels'])):
+        level = part['levels'][level_index]
+        if level['type'] != 'practice':
+            continue
+
+        skill_ids = level['pathLevelClientData']['skillIds']
+        level_path = f"stuff/course-{from_lang}/part/{phase_index+1:02d}"
+        level_filename = f"{level_path}/{phase_index+1:02d}-{part_index+1:02d}-{level_index+1:02d}.json"
+        if os.path.exists(level_filename):
+            if rewrite:
+                os.remove(level_filename)
+            else:
+                print(f"{level_filename} exists")
+                continue
+        os.makedirs(level_path, exist_ok=True)
+        data =  {
+            "challengeTypes": [
+                "assist", "characterIntro", "characterMatch", "characterPuzzle", "characterSelect", "characterTrace",
+                "characterWrite", "completeReverseTranslation", "definition", "dialogue", "extendedMatch", "extendedListenMatch",
+                "form", "freeResponse", "gapFill", "judge", "listen", "listenComplete", "listenMatch", "match", "name",
+                "listenComprehension", "listenIsolation", "listenSpeak", "listenTap", "orderTapComplete", "partialListen",
+                "partialReverseTranslate", "patternTapComplete", "radioBinary", "radioImageSelect", "radioListenMatch",
+                "radioListenRecognize", "radioSelect", "readComprehension", "reverseAssist", "sameDifferent", "select",
+                "selectPronunciation", "selectTranscription", "svgPuzzle", "syllableTap", "syllableListenTap", "speak",
+                "tapCloze", "tapClozeTable", "tapComplete", "tapCompleteTable", "tapDescribe", "translate", "transliterate",
+                "transliterationAssist", "typeCloze", "typeClozeTable", "typeComplete", "typeCompleteTable", "writeComprehension"
+            ],
+            "fromLanguage": f'{from_lang}',
+            "isFinalLevel": False,
+            "isV2": True,
+            "juicy": True,
+            "learningLanguage": "en",
+            "lexemePracticeType": "practice_level",
+            "pathExperiments": ["UNIT_VISION_BB_93"],
+            "skillIds": skill_ids,
+            "type": 'LEXEME_PRACTICE' if level['subtype'] == 'practice' else 'UNIT_PRACTICE',
+            "levelSessionIndex": 0
+        }
+        response =  get_with_retries('https://www.duolingo.com/2017-06-30/sessions', None, data)
+        if response.status_code == 200:
+            data = response.json()
+            with open(level_filename, 'w', encoding='utf-8') as json_file:
+                json.dump(data, json_file, ensure_ascii=False, indent=4)
+            print(f"200 '{level_filename}'")
+        else:
+            print(f"{response.status_code} '{level_filename}'")
+
+
 def download_guidebook(phase_index, part_index, part, rewrite):
     if 'guidebook' not in part or part['guidebook'] is None:
         return
@@ -21,7 +72,7 @@ def download_guidebook(phase_index, part_index, part, rewrite):
         return
     guidebook_name = re.sub(r"[/'\s]", '-', part['teachingObjective']) # replacing blank or single-quoted characters with underscores
     
-    guidebook_path = f"stuff/course{user_lang}/guidebook/{phase_index+1:02d}"
+    guidebook_path = f"stuff/course-{from_lang}/guidebook/{phase_index+1:02d}"
     guidebook_filename = f"{guidebook_path}/{phase_index+1:02d}-{part_index+1:02d}_{guidebook_name}.json"
 
     if os.path.exists(guidebook_filename):
@@ -32,7 +83,7 @@ def download_guidebook(phase_index, part_index, part, rewrite):
             return
     os.makedirs(guidebook_path, exist_ok=True)
 
-    response =  get_with_retries(guidebook_url)
+    response =  get_with_retries(guidebook_url, {})
     if response.status_code == 200:
         data = response.json()
         with open(guidebook_filename, 'w', encoding='utf-8') as json_file:
@@ -52,7 +103,7 @@ def download_story(phase_index, part_index, part, story_id_set, rewrite):
         if story_id in story_id_set:
             continue
         story_id_set.add(story_id)
-        story_path = f"stuff/course{user_lang}/story/{phase_index+1:02d}"
+        story_path = f"stuff/course-{from_lang}/story/{phase_index+1:02d}"
         story_filename = f"{story_path}/{phase_index+1:02d}-{part_index+1:02d}_{story_id[6:]}.json"
         story_url_template = """https://stories.duolingo.com/api2/stories/{}?crowns=495&debugShowAllChallenges=false&illustrationFormat=svg&isDesktop=true&isLegendaryMode=false&masterVersion=false&supportedElements=ARRANGE,CHALLENGE_PROMPT,DUO_POPUP,FREEFORM_WRITING,FREEFORM_WRITING_EXAMPLE_RESPONSE,FREEFORM_WRITING_PROMPT,HEADER,HINT_ONBOARDING,LINE,MATCH,MULTIPLE_CHOICE,POINT_TO_PHRASE,SECTION_HEADER,SELECT_PHRASE,SENDER_RECEIVER,SUBHEADING,TYPE_TEXT&type=story&_={}"""
         story_url = story_url_template.format(story_id, int(time.time()*1000))
@@ -65,13 +116,7 @@ def download_story(phase_index, part_index, part, story_id_set, rewrite):
                 return
         os.makedirs(story_path, exist_ok=True)
 
-        headers = {
-            'Accept': 'application/json; charset=UTF-8',
-            'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
-            'Authorization': env_variables.get('Authorization'),
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-        }
-        response = get_with_retries(story_url, headers)
+        response = get_with_retries(story_url)
         if response.status_code == 200:
             data = response.json()
             with open(story_filename, 'w', encoding='utf-8') as json_file:
@@ -82,21 +127,34 @@ def download_story(phase_index, part_index, part, story_id_set, rewrite):
         time.sleep(0.2)
 
 
-def get_with_retries(url, headers = None, max_retries = 3):
+def get_with_retries(url, headers = None, data = None, max_retries = 3):
     retries = 0
+    the_headers = {
+        'Accept': 'application/json; charset=UTF-8',
+        'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+        'Authorization': env_variables.get('Authorization'),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+    }
+    if headers:
+        the_headers.update(headers)
+    the_data = data
+
     while retries < max_retries:
-        response = requests.get(url, headers=headers)
-        if 500 <= response.status_code < 600:
+        if data:
+            res = requests.post(url, headers=the_headers, json=the_data)
+        else:
+            res = requests.get(url, headers=the_headers)
+        if 500 <= res.status_code < 600:
             retries += 1
-            print(f"{response.status_code} '{url}' retrying {retries}/{max_retries}...")
+            print(f"{res.status_code} '{url}' retrying {retries}/{max_retries}...")
             time.sleep(2 * retries)
         else:
-            return response
-    return response
+            return res
+    return res
 
 
 def download_courses(rewrite):
-    current_course_filename = f"./stuff/course{user_lang}/currentCourse.json"
+    current_course_filename = f"./stuff/course-{from_lang}/currentCourse.json"
     with open(current_course_filename, 'r', encoding='utf-8') as current_course_file:
         course = json.load(current_course_file)
         
@@ -105,8 +163,9 @@ def download_courses(rewrite):
         phase = course['currentCourse']['pathSectioned'][phase_index]
         for part_index in range(len(phase['units'])):
             part = phase['units'][part_index]
-            download_guidebook(phase_index, part_index, part, rewrite)
-            download_story(phase_index, part_index, part, story_id_set, rewrite)
+            download_part(phase_index, part_index, part, rewrite)
+            # download_guidebook(phase_index, part_index, part, rewrite)
+            # download_story(phase_index, part_index, part, story_id_set, rewrite)
 
 
 
@@ -150,7 +209,7 @@ def get_static_filename(url):
 
 
 def download_story_static_files(rewrite):
-    story_root_path = f"./stuff/course{user_lang}/story"
+    story_root_path = f"./stuff/course-{from_lang}/story"
     phase_dirs = [phase_dir for phase_dir in os.listdir(story_root_path) if os.path.isdir(f"{story_root_path}/{phase_dir}")]
     story_filenames =[]
     for phase_dir in phase_dirs:
@@ -240,7 +299,7 @@ def format_duration(duration_ms):
 
 
 def generate_story_mp3_files(rewrite):
-    story_root_path = f"./stuff/course{user_lang}/story"
+    story_root_path = f"./stuff/course-{from_lang}/story"
     phase_dirs = [phase_dir for phase_dir in os.listdir(story_root_path) if os.path.isdir(f"{story_root_path}/{phase_dir}")]
     story_filenames =[]
     for phase_dir in phase_dirs:
@@ -254,22 +313,27 @@ def generate_story_mp3_files(rewrite):
         print(f"generatied mp3 file for '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
 
 
+ 
+
+
+
 
 
 def main():
-    print('start ...')
-    # download_courses(False)
+    # print('start ...')
+    download_courses(False)
     # download_story_static_files(False)
     # generate_story_mp3_files(False)
 
 
 
 
+
+
 env_variables = dotenv_values(".env")
-# user_lang = ""
-user_lang = "-zh"
-# user_lang = "-es"
-# user_lang = "-ja"
+from_lang = "zh"
+# from_lang = "es"
+# from_lang = "ja"
 
 if __name__ == '__main__':
     main()    
