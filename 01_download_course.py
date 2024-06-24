@@ -11,7 +11,7 @@ from dotenv import dotenv_values
 
 
 def download_part(phase_index, part_index, part, rewrite):
-    if phase_index < 6:
+    if phase_index < 5 and phase_index > 7:
         return    
     for level_index in range(len(part['levels'])):
         level = part['levels'][level_index]
