@@ -11,14 +11,26 @@ from dotenv import dotenv_values
 
 
 def download_part(phase_index, part_index, part, rewrite):
-    if phase_index < 5 and phase_index > 7:
-        return    
+    if phase_index > 7:
+        return
+    type_map = {
+        'skill-regular': 'LEXEME_SKILL_LEVEL_PRACTICE',
+        'skill-grammar': 'LESSON',
+        'practice-practice': 'LEXEME_PRACTICE',
+        'practice-unit_practice': 'UNIT_PRACTICE'
+    }
     for level_index in range(len(part['levels'])):
         level = part['levels'][level_index]
-        if level['type'] != 'practice':
+        if level['type'] in { 'story', 'chest', 'unit_review' }:
             continue
+        if f"{level['type']}-{level['subtype']}" not in type_map:
+            print(f"type not match: 'https://www.duolingo.com/lesson/unit/{part['unitIndex']+1}/level/{level_index+1}'")
 
-        skill_ids = level['pathLevelClientData']['skillIds']
+        if 'skillIds' in level['pathLevelClientData']:
+            skill_ids = level['pathLevelClientData']['skillIds']
+        elif 'skillId' in level['pathLevelClientData']:
+            skill_id = level['pathLevelClientData']['skillId']
+            skill_ids = [skill_id]
         level_path = f"stuff/course-{from_lang}/part/{phase_index+1:02d}"
         level_filename = f"{level_path}/{phase_index+1:02d}-{part_index+1:02d}-{level_index+1:02d}.json"
         if os.path.exists(level_filename):
@@ -45,13 +57,21 @@ def download_part(phase_index, part_index, part, rewrite):
             "isV2": True,
             "juicy": True,
             "learningLanguage": "en",
-            "lexemePracticeType": "practice_level",
             "pathExperiments": ["UNIT_VISION_BB_93"],
-            "skillIds": skill_ids,
-            "type": 'LEXEME_PRACTICE' if level['subtype'] == 'practice' else 'UNIT_PRACTICE',
+            "type": type_map.get(f"{level['type']}-{level['subtype']}"),
             "levelSessionIndex": 0
         }
-        response =  get_with_retries('https://www.duolingo.com/2017-06-30/sessions', None, data)
+        if level['type'] == 'practice':
+            data["lexemePracticeType"] = "practice_level"
+        if level['subtype'] =='grammar':
+            data["isGrammarSkill"] = True
+            data["showGrammarSkillSplash"] = False
+            data["skillId"] = skill_id
+            data["levelIndex"] = 0
+        else:
+          data["skillIds"] = skill_ids  
+
+        response =  request_with_retries('https://www.duolingo.com/2017-06-30/sessions', None, data)
         if response.status_code == 200:
             data = response.json()
             with open(level_filename, 'w', encoding='utf-8') as json_file:
@@ -83,7 +103,7 @@ def download_guidebook(phase_index, part_index, part, rewrite):
             return
     os.makedirs(guidebook_path, exist_ok=True)
 
-    response =  get_with_retries(guidebook_url, {})
+    response =  request_with_retries(guidebook_url, {})
     if response.status_code == 200:
         data = response.json()
         with open(guidebook_filename, 'w', encoding='utf-8') as json_file:
@@ -116,7 +136,7 @@ def download_story(phase_index, part_index, part, story_id_set, rewrite):
                 return
         os.makedirs(story_path, exist_ok=True)
 
-        response = get_with_retries(story_url)
+        response = request_with_retries(story_url)
         if response.status_code == 200:
             data = response.json()
             with open(story_filename, 'w', encoding='utf-8') as json_file:
@@ -127,7 +147,7 @@ def download_story(phase_index, part_index, part, story_id_set, rewrite):
         time.sleep(0.2)
 
 
-def get_with_retries(url, headers = None, data = None, max_retries = 3):
+def request_with_retries(url, headers = None, data = None, max_retries = 3):
     retries = 0
     the_headers = {
         'Accept': 'application/json; charset=UTF-8',
