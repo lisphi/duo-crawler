@@ -6,6 +6,8 @@ import pandas as pd
 import urllib.request
 from pydub import AudioSegment
 import re
+import hashlib
+import shutil
 from dotenv import dotenv_values
 
 
@@ -188,13 +190,14 @@ def download_courses(rewrite):
             # download_story(phase_index, part_index, part, story_id_set, rewrite)
 
 
-
 def generate_guidebooks_md():
     return
 
 
+def download_story_static_file(story_filename, rewrite):
+    with open(story_filename, 'r', encoding='utf-8') as story_file:
+        story = json.load(story_file)
 
-def download_story_static_file(story, rewrite):
     for element in story['elements']:
         if element['type'] == 'HEADER':
             download_static_file(element['illustrationUrl'], rewrite)
@@ -213,19 +216,28 @@ def download_static_file(url, rewrite):
         else:
             print(f"file exists: '{target_filename}'")
             return
+    target_path = os.path.dirname(target_filename)
+    os.makedirs(target_path, exist_ok=True)
     urllib.request.urlretrieve(url, target_filename)
     print(f"downloaded '{target_filename}'") 
 
 
 def get_static_filename(url):
     filename = os.path.basename(url)
+    prefix_filename, _ = os.path.splitext(filename)
+    mod64 = int(hashlib.sha256(prefix_filename.encode()).hexdigest(), 16) % 64
     if '/image/' in url:
-        target_filename = f"./stuff/static/image/{filename}"
+        target_filename = f"./stuff/static/image/{mod64:02d}/{filename}"
     elif '/audio/' in url:
-        target_filename = f"./stuff/static/audio/{filename}"
+        target_filename = f"./stuff/static/audio/{mod64:02d}/{filename}"
+    elif '/beaen/' in url:
+        target_filename = f"./stuff/static/beaen/{mod64:02d}/{filename}.mp3"
+    elif '/eddyen/' in url:
+        target_filename = f"./stuff/static/eddyen/{mod64:02d}/{filename}.mp3"
     else:
+        print(url)
         target_filename = f"./stuff/static/{filename}"
-    return target_filename  
+    return target_filename
 
 
 def download_story_static_files(rewrite):
@@ -235,15 +247,34 @@ def download_story_static_files(rewrite):
     for phase_dir in phase_dirs:
         filenames = [filename for filename in os.listdir(f"{story_root_path}/{phase_dir}") if filename.endswith('.json')]
         story_filenames.extend([f"{story_root_path}/{phase_dir}/{filename}" for filename in filenames])
-
     for i in range(len(story_filenames)):
         story_filename = story_filenames[i]
-        with open(story_filename, 'r', encoding='utf-8') as story_file:
-            story = json.load(story_file)
         print(f"downloading static files for '{story_filename}' ...")
-        download_story_static_file(story, rewrite)
-        print(f"downloaded static files for '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
-        
+        download_story_static_file(story_filename, rewrite)
+        print(f"downloaded static files for '{story_filename}' {(i + 1.0) / len(story_filenames):.2%}")
+
+
+def download_part_static_file(level_filename, rewrite):
+    with open(level_filename, 'r', encoding='utf-8') as level_file:
+        level = json.load(level_file)
+
+    for challenge in level['challenges']:
+        if challenge['type'] == 'listenComprehension':
+            download_static_file(challenge['tts'], rewrite)
+
+
+def download_part_static_files(rewrite):
+    part_root_path = f"./stuff/course-{from_lang}/part"
+    phase_dirs = [phase_dir for phase_dir in os.listdir(part_root_path) if os.path.isdir(f"{part_root_path}/{phase_dir}")]
+    level_filenames =[]
+    for phase_dir in phase_dirs:
+        filenames = [filename for filename in os.listdir(f"{part_root_path}/{phase_dir}") if filename.endswith('.json')]
+        level_filenames.extend([f"{part_root_path}/{phase_dir}/{filename}" for filename in filenames])    
+    for i in range(len(level_filenames)):
+        level_filename = level_filenames[i]
+        print(f"downloading static files for '{level_filename}' ...")
+        download_part_static_file(level_filename, rewrite)
+        print(f"downloaded static files for '{level_filename}' {(i + 1.0) / len(level_filenames):.2%}")
 
 
 
@@ -333,21 +364,13 @@ def generate_story_mp3_files(rewrite):
         print(f"generatied mp3 file for '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
 
 
- 
-
-
-
-
 
 def main():
     # print('start ...')
-    download_courses(False)
+    # download_courses(False)
     # download_story_static_files(False)
     # generate_story_mp3_files(False)
-
-
-
-
+    download_part_static_files(False)
 
 
 env_variables = dotenv_values(".env")
