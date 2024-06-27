@@ -7,7 +7,7 @@ import urllib.request
 from pydub import AudioSegment
 import re
 import hashlib
-import shutil
+from itertools import groupby
 from dotenv import dotenv_values
 
 
@@ -186,8 +186,8 @@ def download_courses(rewrite):
         for part_index in range(len(phase['units'])):
             part = phase['units'][part_index]
             download_part(phase_index, part_index, part, rewrite)
-            # download_guidebook(phase_index, part_index, part, rewrite)
-            # download_story(phase_index, part_index, part, story_id_set, rewrite)
+            download_guidebook(phase_index, part_index, part, rewrite)
+            download_story(phase_index, part_index, part, story_id_set, rewrite)
 
 
 def generate_guidebooks_md():
@@ -361,16 +361,84 @@ def generate_story_mp3_files(rewrite):
         story_filename = story_filenames[i]
         print(f"generating mp3 file for '{story_filename}' ...")
         generate_story_mp3_file(story_filename, rewrite)
-        print(f"generatied mp3 file for '{story_filename}' {(i + 1.0) / len(filenames):.2%}")
+        print(f"generatied mp3 file for '{story_filename}' {(i + 1.0) / len(story_filenames):.2%}")
 
+
+def generate_story_mp3_files(rewrite):
+    story_root_path = f"./stuff/course-{from_lang}/story"
+    phase_dirs = [phase_dir for phase_dir in os.listdir(story_root_path) if os.path.isdir(f"{story_root_path}/{phase_dir}")]
+    story_filenames =[]
+    for phase_dir in phase_dirs:
+        filenames = [filename for filename in os.listdir(f"{story_root_path}/{phase_dir}") if filename.endswith('.json')]
+        story_filenames.extend([f"{story_root_path}/{phase_dir}/{filename}" for filename in filenames])
+
+    for i in range(len(story_filenames)):
+        story_filename = story_filenames[i]
+        print(f"generating mp3 file for '{story_filename}' ...")
+        generate_story_mp3_file(story_filename, rewrite)
+        print(f"generatied mp3 file for '{story_filename}' {(i + 1.0) / len(story_filenames):.2%}")
+
+
+def generate_part_mp3_file(target_filename_no_extension, level_filenames, rewrite):
+    target_mp3_filename = f"{target_filename_no_extension}.mp3"
+    target_lrc_filename = f"{target_filename_no_extension}.lrc"
+    if os.path.exists(target_mp3_filename):
+        if rewrite:
+            os.remove(target_mp3_filename)
+        else:
+            print(f"{target_mp3_filename} exists")
+            return
+    if os.path.exists(target_lrc_filename) and rewrite:
+        os.remove(target_lrc_filename)
+    listenComprehensions = []
+    for level_filename in level_filenames:
+        with open(level_filename, 'r', encoding='utf-8') as story_file:
+            level = json.load(story_file)
+        for challenge in level['challenges']:
+            if challenge['type'] == 'listenComprehension':
+                prompt = challenge['prompt']
+                tts = challenge['tts']
+                listenComprehensions.append({ 'prompt': prompt, 'tts': tts })
+    if len(listenComprehensions) == 0:
+        return
+    merged = AudioSegment.empty()
+    lyrics = []
+    total_duration_ms = 0
+    for listenComprehension in listenComprehensions:
+        prompt = listenComprehension['prompt']
+        audio_filename = get_static_filename(listenComprehension['tts'])
+        lyrics.append(f"[{format_duration(total_duration_ms)}]{prompt}")
+        audio = AudioSegment.from_mp3(audio_filename)
+        merged += audio
+        merged += AudioSegment.silent(2000)
+        total_duration_ms += len(audio) + 2000
+    merged += AudioSegment.silent(3000)
+    merged.export(target_mp3_filename, format="mp3")
+    with open(target_lrc_filename, 'w', encoding='utf-8') as outfile_lrc:
+        for lyric in lyrics:
+            outfile_lrc.write(lyric)
+            outfile_lrc.write('\n')
+
+
+def generate_part_mp3_files(rewrite):
+    part_root_path = f"./stuff/course-{from_lang}/part"
+    phase_dirs = [phase_dir for phase_dir in os.listdir(part_root_path) if os.path.isdir(f"{part_root_path}/{phase_dir}")]
+    level_filenames =[]
+    for phase_dir in phase_dirs:
+        filenames = [filename for filename in os.listdir(f"{part_root_path}/{phase_dir}") if filename.endswith('.json')]
+        level_filenames.extend([f"{part_root_path}/{phase_dir}/{filename}" for filename in filenames])
+    level_filenames.sort()
+    for key, value in groupby(level_filenames, lambda x : x[:-8]):
+        generate_part_mp3_file(key, list(value), rewrite)
 
 
 def main():
-    # print('start ...')
+    print('start ...')
     # download_courses(False)
     # download_story_static_files(False)
     # generate_story_mp3_files(False)
-    download_part_static_files(False)
+    # download_part_static_files(False)
+    # generate_part_mp3_files(False)
 
 
 env_variables = dotenv_values(".env")
