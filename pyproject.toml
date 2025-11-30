@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "duo-crawler"
+version = "1.0.0"
+description = "A Duolingo course and story content crawler"
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+]
+
+dependencies = [
+    "requests>=2.31.0",
+    "pydub>=0.25.1",
+    "python-dotenv>=1.0.0",
+    "click>=8.1.7",
+]
+
+[dependency-groups]
+main = []
+dev = ["pytest", "pyright", "ruff"]
+
+[project.urls]
+"Homepage" = "https://github.com/lisphi/duo-crawler"
+"Bug Reports" = "https://github.com/lisphi/duo-crawler/issues"
+"Source" = "https://github.com/lisphi/duo-crawler"
+
+[project.scripts]
+duo-crawler = "duo.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
+exclude = ["tests*", "stuff*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = [
+    "tests",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
+default = true
